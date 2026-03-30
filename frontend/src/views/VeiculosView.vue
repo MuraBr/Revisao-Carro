@@ -93,9 +93,13 @@ const mostraModificar = ref(false)
 const veiculoSelecionado = ref(null)
 const pesquisa = ref('')
 const veiculoStore = useVeiculoStore()
+let timeoutId = null
 
 watch(pesquisa, (novoValor) => {
-  veiculoStore.buscarTodos(1, novoValor)
+  clearTimeout(timeoutId)
+  timeoutId = setTimeout(() => {
+    veiculoStore.buscarTodos(1, novoValor)
+  }, 400)
 })
 
 onMounted(() => veiculoStore.buscarTodos())

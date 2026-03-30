@@ -61,6 +61,19 @@ services:
       - nginx
     networks:
       - revisao
+      
+  redis:
+    image: redis:alpine
+    container_name: revisao_redis
+    ports:
+      - "6379:6379"
+    networks:
+      - revisao
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
 volumes:
   postgres_data:  # volume persistente — dados sobrevivem ao container

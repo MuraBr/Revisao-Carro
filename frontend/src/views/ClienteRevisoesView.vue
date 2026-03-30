@@ -118,12 +118,16 @@ const mostraCadastrar = ref(false)
 const mostraModificar = ref(false)
 const revisaoSelecionada = ref(null)
 const pesquisa = ref('')
+let timeoutId = null
 const revisaoStore = useRevisaoStore()
 
 onMounted(() => revisaoStore.buscarDoVeiculo(clienteId, veiculoId))
 
 watch(pesquisa, (novoValor) => {
-  revisaoStore.buscarDoVeiculo(clienteId, veiculoId, 1, novoValor)
+  clearTimeout(timeoutId)
+  timeoutId = setTimeout(() => {
+    revisaoStore.buscarDoVeiculo(clienteId, veiculoId, 1, novoValor)
+  }, 400)
 })
 
 function mudarPagina(novaPagina) {

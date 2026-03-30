@@ -120,11 +120,15 @@ const veiculoSelecionado = ref(null)
 const veiculoStore = useVeiculoStore()
 
 const pesquisa = ref('')
+let timeoutId = null
 
 onMounted(() => veiculoStore.buscarDoCliente(clienteId))
 
 watch(pesquisa, (novoValor) => {
-  veiculoStore.buscarDoCliente(clienteId, 1, novoValor)
+  clearTimeout(timeoutId)
+  timeoutId = setTimeout(() => {
+    veiculoStore.buscarDoCliente(clienteId, 1, novoValor)
+  }, 400)
 })
 
 function mudarPagina(novaPagina) {

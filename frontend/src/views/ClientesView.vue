@@ -114,6 +114,7 @@ const mostraCadastrar = ref(false)
 const mostraModificar = ref(false)
 const clienteSelecionado = ref(null)
 const pesquisa = ref('')
+let timeoutId = null
 
 // Busca inicial
 onMounted(() => clienteStore.buscarTodos())
@@ -126,7 +127,10 @@ async function mudarPagina(novaPagina) {
 
 // Observa a pesquisa: Quando o usuário digita, buscamos no banco desde a página 1
 watch(pesquisa, (novoValor) => {
-  clienteStore.buscarTodos(1, novoValor)
+  clearTimeout(timeoutId)
+  timeoutId = setTimeout(() => {
+    clienteStore.buscarTodos(1, novoValor)
+  }, 400)
 })
 
 async function criarCliente(form) {

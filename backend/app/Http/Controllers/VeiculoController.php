@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Veiculo;
 use Illuminate\Http\Request;
 use App\Models\Cliente;
+use Illuminate\Support\Facades\Cache;
 
 class VeiculoController extends Controller
 {
@@ -14,18 +15,43 @@ class VeiculoController extends Controller
     //     return response()->json($veiculos);
     // }
 
+    // public function todos(Request $request)
+    // {
+    //     $query = Veiculo::with('cliente')->orderBy('marca');
+
+    //     if ($request->has('search') && $request->search) {
+    //         $query->where(function($q) use ($request) {
+    //             $q->where('marca', 'ilike', '%' . $request->search . '%')
+    //             ->orWhere('modelo', 'ilike', '%' . $request->search . '%');
+    //         });
+    //     }
+
+    //     return $query->paginate(8);
+    // }
+
     public function todos(Request $request)
     {
-        $query = Veiculo::with('cliente')->orderBy('marca');
+        $search = $request->query('search', '');
+        $page = $request->query('page', 1);
 
-        if ($request->has('search') && $request->search) {
-            $query->where(function($q) use ($request) {
-                $q->where('marca', 'ilike', '%' . $request->search . '%')
-                ->orWhere('modelo', 'ilike', '%' . $request->search . '%');
-            });
-        }
+        // Chave específica para a listagem GERAL (sem ID de cliente)
+        $cacheKey = "veiculos_todos_geral_p{$page}_s_" . md5((string)$search);
 
-        return $query->paginate(8);
+        return Cache::tags(['veiculos'])->remember($cacheKey, 3600, function () use ($search) {
+            // Busca todos os veículos com seus respectivos donos (clientes)
+            $query = Veiculo::with('cliente')->orderBy('marca');
+
+            if (!empty($search)) {
+                $query->where(function($q) use ($search) {
+                    $q->where('marca', 'ilike', '%' . $search . '%')
+                    ->orWhere('modelo', 'ilike', '%' . $search . '%')
+                    ->orWhere('placa', 'ilike', '%' . $search . '%');
+                });
+            }
+
+            // Retorna toArray() para evitar erro de serialização no Predis
+            return $query->paginate(8)->toArray();
+        });
     }
 
     // public function index(Cliente $cliente)
@@ -34,18 +60,47 @@ class VeiculoController extends Controller
     //     return response()->json($veiculos);
     // }
 
-    public function index(Cliente $cliente, Request $request)
+    // public function index(Cliente $cliente, Request $request)
+    // {
+    //     $query = $cliente->veiculos()->orderBy('marca');
+
+    //     if ($request->has('search') && $request->search) {
+    //         $query->where(function($q) use ($request) {
+    //             $q->where('marca', 'ilike', '%' . $request->search . '%')
+    //             ->orWhere('modelo', 'ilike', '%' . $request->search . '%');
+    //         });
+    //     }
+
+    //     return $query->paginate(8);
+    // }
+
+    public function index(Request $request)
     {
-        $query = $cliente->veiculos()->orderBy('marca');
+        $search = $request->query('search', '');
+        $page = $request->query('page', 1);
+        $clienteId = $request->query('cliente_id'); // Captura o ID do cliente se houver
 
-        if ($request->has('search') && $request->search) {
-            $query->where(function($q) use ($request) {
-                $q->where('marca', 'ilike', '%' . $request->search . '%')
-                ->orWhere('modelo', 'ilike', '%' . $request->search . '%');
-            });
-        }
+        // A chave agora inclui o clienteId para diferenciar "Meus Veículos" de "Todos os Veículos"
+        $cacheKey = "veiculos_index_c{$clienteId}_p{$page}_s_" . md5((string)$search);
 
-        return $query->paginate(8);
+        return Cache::tags(['veiculos'])->remember($cacheKey, 3600, function () use ($search, $clienteId) {
+            $query = Veiculo::with('cliente')->orderBy('placa', 'asc');
+
+            // Se houver cliente_id, filtra apenas os veículos dele
+            if ($clienteId) {
+                $query->where('cliente_id', $clienteId);
+            }
+
+            // Se houver termo de busca, filtra por placa ou modelo
+            if (!empty($search)) {
+                $query->where(function($q) use ($search) {
+                    $q->where('placa', 'ilike', '%' . $search . '%')
+                    ->orWhere('modelo', 'ilike', '%' . $search . '%');
+                });
+            }
+
+            return $query->paginate(8)->toArray();
+        });
     }
 
     public function store(Cliente $cliente, Request $request)

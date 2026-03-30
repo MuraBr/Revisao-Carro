@@ -4,28 +4,41 @@ namespace App\Http\Controllers;
 
 use App\Models\Cliente;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 
 class ClienteController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
-    // public function index()
+    // public function index(Request $request)
     // {
-    //     $clientes = Cliente::all();
-    //     return response()->json($clientes);
+    //     $query = Cliente::orderBy('nome', 'asc');
+
+    //     // pesquisa por nome
+    //     if ($request->has('search') && $request->search) {
+    //         $query->where('nome', 'ilike', '%' . $request->search . '%');
+    //     }
+
+    //     return $query->paginate(8);
     // }
 
     public function index(Request $request)
     {
-        $query = Cliente::orderBy('nome', 'asc');
+        $search = $request->query('search', '');
+        $page = $request->query('page', 1);
 
-        // pesquisa por nome
-        if ($request->has('search') && $request->search) {
-            $query->where('nome', 'ilike', '%' . $request->search . '%');
-        }
+        // Chave única para evitar colisões
+        $cacheKey = "clientes_index_p{$page}_s_" . md5((string)$search);
 
-        return $query->paginate(8);
+        return Cache::tags(['clientes'])->remember($cacheKey, 3600, function () use ($search) {
+            $query = Cliente::orderBy('nome', 'asc');
+
+            if (!empty($search)) {
+                $query->where('nome', 'ilike', '%' . $search . '%');
+            }
+
+            // O SEGREDO: toArray() remove as "Closures" pesadas do Eloquent
+            // e salva apenas os dados que o Vue precisa.
+            return $query->paginate(8)->toArray();
+        });
     }
 
     /**
@@ -57,6 +70,7 @@ class ClienteController extends Controller
             'genero' => $request->genero,
         ]);
 
+        Cache::tags(['clientes'])->flush();
         return response()->json($cliente, 201);
     }
 
@@ -93,8 +107,8 @@ class ClienteController extends Controller
             'data_nascimento' => 'sometimes|date|before_or_equal:today',
             'genero' => 'sometimes|string',
         ]);
-
         $cliente->update($request->only(['nome', 'cpf', 'email', 'telefone', 'endereco', 'numero', 'cep', 'data_nascimento', 'genero']));
+        Cache::tags(['clientes'])->flush();
         return response()->json($cliente);
     }
 
@@ -108,19 +122,20 @@ class ClienteController extends Controller
             return response()->json(['message' => 'Cliente não encontrado'], 404);
         }
         $cliente->delete();
+        Cache::tags(['clientes'])->flush();
         return response()->json(['message' => 'Cliente deletado com sucesso']);
     }
 
     public function verificarCpf(Request $request)
-{
-    $existe = Cliente::where('cpf', $request->cpf)
-        ->when($request->id, function ($q) use ($request) {
-            return $q->where('id', '!=', $request->id); // Ignora o próprio usuário
-        })
-        ->exists();
+    {
+        $existe = Cliente::where('cpf', $request->cpf)
+            ->when($request->id, function ($q) use ($request) {
+                return $q->where('id', '!=', $request->id); // Ignora o próprio usuário
+            })
+            ->exists();
 
-    return response()->json(['existe' => $existe]);
-}
+        return response()->json(['existe' => $existe]);
+    }
 
     public function verificarEmail(Request $request)
     {

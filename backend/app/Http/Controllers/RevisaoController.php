@@ -6,6 +6,7 @@ use App\Models\Veiculo;
 use App\Models\Cliente;
 use App\Models\Revisao;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 
 class RevisaoController extends Controller
 {
@@ -15,20 +16,47 @@ class RevisaoController extends Controller
     //     return response()->json($revisoes);
     // }
 
+    // public function todas(Request $request)
+    // {
+    //     $query = Revisao::with('veiculo.cliente')->orderBy('data_revisao', 'desc');
+
+    //     if ($request->has('search')) {
+    //         $query->where(function($q) use ($request) {
+    //             $q->where('descricao', 'like', '%' . $request->search . '%')
+    //             ->orWhere('preco_total', 'like', '%' . $request->search . '%')
+    //             ->orWhere('km_revisao', 'like', '%' . $request->search . '%')
+    //             ->orWhere('data_revisao', 'like', '%' . $request->search . '%');
+    //         });
+    //     }
+
+    //     return $query->paginate(8);
+    // }
+
     public function todas(Request $request)
     {
-        $query = Revisao::with('veiculo.cliente')->orderBy('data_revisao', 'desc');
+        $search = $request->query('search', '');
+        $page = $request->query('page', 1);
 
-        if ($request->has('search')) {
-            $query->where(function($q) use ($request) {
-                $q->where('descricao', 'like', '%' . $request->search . '%')
-                ->orWhere('preco_total', 'like', '%' . $request->search . '%')
-                ->orWhere('km_revisao', 'like', '%' . $request->search . '%')
-                ->orWhere('data_revisao', 'like', '%' . $request->search . '%');
-            });
-        }
+        // Chave única para a listagem ADMINISTRATIVA (todas as revisões)
+        $cacheKey = "revisoes_todas_geral_p{$page}_s_" . md5((string)$search);
 
-        return $query->paginate(8);
+        return Cache::tags(['revisoes'])->remember($cacheKey, 3600, function () use ($search) {
+            // Carrega veículo e o dono do veículo (cliente) em uma única consulta (Eager Loading)
+            $query = Revisao::with('veiculo.cliente')->orderBy('data_revisao', 'desc');
+
+            if (!empty($search)) {
+                $query->where(function($q) use ($search) {
+                    // Usamos 'ilike' para o PostgreSQL ser case-insensitive
+                    $q->where('descricao', 'ilike', '%' . $search . '%')
+                    ->orWhere('preco_total', 'ilike', '%' . $search . '%')
+                    ->orWhere('km_revisao', 'ilike', '%' . $search . '%')
+                    ->orWhere('data_revisao', 'ilike', '%' . $search . '%');
+                });
+            }
+
+            // Converte para Array para que o Predis consiga salvar sem erro de 'Closure'
+            return $query->paginate(8)->toArray();
+        });
     }
 
     // public function index(Cliente $cliente, Veiculo $veiculo)
@@ -40,20 +68,45 @@ class RevisaoController extends Controller
     //     return response()->json($response);
     // }
 
-    public function index(Cliente $cliente, Veiculo $veiculo, Request $request)
+    // public function index(Cliente $cliente, Veiculo $veiculo, Request $request)
+    // {
+    //     $query = $veiculo->revisoes()->orderBy('data_revisao', 'desc');
+
+    //     if ($request->has('search')) {
+    //         $query->where(function($q) use ($request) {
+    //             $q->where('descricao', 'like', '%' . $request->search . '%')
+    //             ->orWhere('preco_total', 'like', '%' . $request->search . '%')
+    //             ->orWhere('km_revisao', 'like', '%' . $request->search . '%')
+    //             ->orWhere('data_revisao', 'like', '%' . $request->search . '%');
+    //         });
+    //     }
+
+    //     return $query->paginate(8);
+    // }
+
+    public function index(Request $request)
     {
-        $query = $veiculo->revisoes()->orderBy('data_revisao', 'desc');
+        $search = $request->query('search', '');
+        $page = $request->query('page', 1);
+        $clienteId = $request->query('cliente_id');
 
-        if ($request->has('search')) {
-            $query->where(function($q) use ($request) {
-                $q->where('descricao', 'like', '%' . $request->search . '%')
-                ->orWhere('preco_total', 'like', '%' . $request->search . '%')
-                ->orWhere('km_revisao', 'like', '%' . $request->search . '%')
-                ->orWhere('data_revisao', 'like', '%' . $request->search . '%');
-            });
-        }
+        $cacheKey = "revisoes_index_c{$clienteId}_p{$page}_s_" . md5((string)$search);
 
-        return $query->paginate(8);
+        return Cache::tags(['revisoes'])->remember($cacheKey, 3600, function () use ($search, $clienteId) {
+            $query = Revisao::with(['cliente', 'veiculo'])->orderBy('data_revisao', 'desc');
+
+            if ($clienteId) {
+                $query->where('cliente_id', $clienteId);
+            }
+
+            if (!empty($search)) {
+                $query->whereHas('veiculo', function($q) use ($search) {
+                    $q->where('placa', 'ilike', '%' . $search . '%');
+                });
+            }
+
+            return $query->paginate(8)->toArray();
+        });
     }
 
     public function store(Request $request, Cliente $cliente,  Veiculo $veiculo)

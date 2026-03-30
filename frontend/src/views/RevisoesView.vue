@@ -99,11 +99,15 @@ const mostraModificar = ref(false)
 const revisaoStore = useRevisaoStore()
 const revisaoSelecionada = ref(null)
 const pesquisa = ref('')
+let timeoutId = null
 
 onMounted(() => revisaoStore.buscarTodas())
 
 watch(pesquisa, (novoValor) => {
-  clienteStore.buscarTodas(1, novoValor)
+  clearTimeout(timeoutId)
+  timeoutId = setTimeout(() => {
+    revisaoStore.buscarTodas(1, novoValor)
+  }, 400)
 })
 
 async function mudarPagina(novaPagina) {
