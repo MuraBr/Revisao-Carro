@@ -1,0 +1,41 @@
+@import "tailwindcss";
+@import './base.css';
+
+/* * {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+} */
+
+body {
+  min-height: 100vh;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 15px;
+  -webkit-font-smoothing: antialiased;
+}
+
+#app {
+  min-height: 100vh;
+  width: 100%;
+}
+
+a {
+  text-decoration: none;
+}
+
+input, textarea, select {
+  color: gray;
+}
+
+label {
+  color: black;
+}
+
+h2 {
+  color: black;
+}
+
+button.nav {
+  background-color: white;
+  color: black;
+}
