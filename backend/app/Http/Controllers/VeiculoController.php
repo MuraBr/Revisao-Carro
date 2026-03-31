@@ -74,27 +74,20 @@ class VeiculoController extends Controller
     //     return $query->paginate(8);
     // }
 
-    public function index(Request $request)
+    public function index(Request $request, $clienteId)
     {
         $search = $request->query('search', '');
         $page = $request->query('page', 1);
-        $clienteId = $request->query('cliente_id'); // Captura o ID do cliente se houver
 
-        // A chave agora inclui o clienteId para diferenciar "Meus Veículos" de "Todos os Veículos"
-        $cacheKey = "veiculos_index_c{$clienteId}_p{$page}_s_" . md5((string)$search);
+        // CHAVE ÚNICA: Usamos o ID do cliente que veio da URL
+        $cacheKey = "veiculos_cliente_{$clienteId}_p{$page}_s_" . md5((string)$search);
 
-        return Cache::tags(['veiculos'])->remember($cacheKey, 3600, function () use ($search, $clienteId) {
-            $query = Veiculo::with('cliente')->orderBy('placa', 'asc');
+        return Cache::tags(['veiculos'])->remember($cacheKey, 3600, function () use ($clienteId, $search) {
+            $query = Veiculo::where('cliente_id', $clienteId)->orderBy('marca');
 
-            // Se houver cliente_id, filtra apenas os veículos dele
-            if ($clienteId) {
-                $query->where('cliente_id', $clienteId);
-            }
-
-            // Se houver termo de busca, filtra por placa ou modelo
             if (!empty($search)) {
                 $query->where(function($q) use ($search) {
-                    $q->where('placa', 'ilike', '%' . $search . '%')
+                    $q->where('marca', 'ilike', '%' . $search . '%')
                     ->orWhere('modelo', 'ilike', '%' . $search . '%');
                 });
             }
@@ -125,6 +118,7 @@ class VeiculoController extends Controller
             'ano' => $request->ano,
         ]);
 
+        Cache::tags(['veiculos'])->flush();
         return response()->json($veiculo, 201);
     }
 
@@ -153,7 +147,7 @@ class VeiculoController extends Controller
         ]);
 
         $veiculo->update($request->only(['placa', 'marca', 'modelo', 'cor', 'ano']));
-
+        Cache::tags(['veiculos'])->flush();
         return response()->json($veiculo->load('cliente'));
     }
 
@@ -165,6 +159,7 @@ class VeiculoController extends Controller
         }
 
         $veiculo->delete();
+        Cache::tags(['veiculos'])->flush();
         return response()->json(['message' => 'Veículo excluído com sucesso.'], 204);
     }
 

@@ -84,28 +84,19 @@ class RevisaoController extends Controller
     //     return $query->paginate(8);
     // }
 
-    public function index(Request $request)
+    public function index(Request $request, $clienteId, $veiculoId)
     {
-        $search = $request->query('search', '');
         $page = $request->query('page', 1);
-        $clienteId = $request->query('cliente_id');
 
-        $cacheKey = "revisoes_index_c{$clienteId}_p{$page}_s_" . md5((string)$search);
+        // CHAVE ÚNICA: Identifica as revisões deste veículo específico
+        $cacheKey = "revisoes_veiculo_{$veiculoId}_p{$page}";
 
-        return Cache::tags(['revisoes'])->remember($cacheKey, 3600, function () use ($search, $clienteId) {
-            $query = Revisao::with(['cliente', 'veiculo'])->orderBy('data_revisao', 'desc');
-
-            if ($clienteId) {
-                $query->where('cliente_id', $clienteId);
-            }
-
-            if (!empty($search)) {
-                $query->whereHas('veiculo', function($q) use ($search) {
-                    $q->where('placa', 'ilike', '%' . $search . '%');
-                });
-            }
-
-            return $query->paginate(8)->toArray();
+        return Cache::tags(['revisoes'])->remember($cacheKey, 3600, function () use ($veiculoId) {
+            // Buscamos apenas as revisões pertencentes a este veículo
+            return Revisao::where('veiculo_id', $veiculoId)
+                ->orderBy('data_revisao', 'desc')
+                ->paginate(10)
+                ->toArray();
         });
     }
 
@@ -127,6 +118,7 @@ class RevisaoController extends Controller
             'preco_total' => $request->preco_total,
             'descricao' => $request->descricao,
         ]);
+        Cache::tags(['revisoes'])->flush();
         return response()->json($revisao, 201);
     }
 
@@ -150,7 +142,7 @@ class RevisaoController extends Controller
         ]);
 
         $revisao->update($request->only(['data_revisao', 'km_revisao', 'preco_total', 'descricao']));
-
+        Cache::tags(['revisoes'])->flush();
         return response()->json($revisao->load('veiculo.cliente'));
     }
 
@@ -180,6 +172,7 @@ class RevisaoController extends Controller
         }
 
         $revisao->delete();
+        Cache::tags(['revisoes'])->flush();
         return response()->json(['message' => 'Revisão deletada.']);
     }
 }
